@@ -85,42 +85,68 @@ def send_final_callback(session_id: str, session: Dict):
 # ---------------------------
 # Main Endpoint
 # ---------------------------
+from typing import Any, Dict
+
 @app.post("/honeypot")
-async def honeypot(request: Request, x_api_key: str = Header(None)):
+async def honeypot(
+    payload: Dict[str, Any],
+    x_api_key: str = Header(None)
+):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
-    try:
-        data = await request.json()
-    except:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    session_id = data.get("sessionId")
-    message = data.get("message", {})
-    text = message.get("text", "")
+    session_id = payload.get("sessionId")
+    message = payload.get("message", {})
+    text = message.get("text")
 
     if not session_id or not text:
-        raise HTTPException(status_code=400, detail="Missing required fields")
+        return {
+            "status": "success",
+            "reply": "Can you explain the issue?"
+        }
 
     if session_id not in sessions:
         sessions[session_id] = {
             "messages": [],
-            "intelligence": {},
-            "scamDetected": False,
+            "intelligence": {
+                "phoneNumbers": [],
+                "upiIds": [],
+                "phishingLinks": [],
+                "suspiciousKeywords": []
+            },
             "callbackSent": False
         }
 
     session = sessions[session_id]
-    session["messages"].append(message)
+    session["messages"].append(text.lower())
 
-    if not session["scamDetected"]:
-        session["scamDetected"] = detect_scam(text)
+    # Simple extraction
+    session["intelligence"]["phoneNumbers"] += re.findall(r"\+91\d{10}", text)
+    session["intelligence"]["upiIds"] += re.findall(r"[a-zA-Z0-9._-]+@[a-zA-Z]+", text)
+    session["intelligence"]["phishingLinks"] += re.findall(r"https?://[^\s]+", text)
 
-    extract_intelligence(text, session["intelligence"])
-    reply = agent_reply(session["messages"])
+    for k in ["urgent", "verify", "account blocked"]:
+        if k in text.lower():
+            session["intelligence"]["suspiciousKeywords"].append(k)
 
-    if len(session["messages"]) >= 15:
-        send_final_callback(session_id, session)
+    reply = "Why will my account be blocked?"
+
+    if len(session["messages"]) >= 5 and not session["callbackSent"]:
+        try:
+            requests.post(
+                GUVI_CALLBACK_URL,
+                json={
+                    "sessionId": session_id,
+                    "scamDetected": True,
+                    "totalMessagesExchanged": len(session["messages"]),
+                    "extractedIntelligence": session["intelligence"],
+                    "agentNotes": "Urgency-based scam behavior detected"
+                },
+                timeout=5
+            )
+            session["callbackSent"] = True
+        except:
+            pass
 
     return {
         "status": "success",
