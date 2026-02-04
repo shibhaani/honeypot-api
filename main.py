@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, HTTPException, Body
+from fastapi import FastAPI, Request, Header, HTTPException
 import re
 import requests
 from typing import Dict
@@ -82,43 +82,54 @@ def send_final_callback(session_id: str, session: Dict):
 # ---------------------------
 # Main Endpoint
 # ---------------------------
+from fastapi import Request
+import os
+
+API_KEY = os.getenv("API_KEY")
+
 @app.post("/honeypot")
-async def honeypot(
-    data: dict = Body(...),
-    x_api_key: str = Header(None)
-):
+async def honeypot(request: Request, x_api_key: str = Header(None)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
 
+    try:
+        data = await request.json()
+    except:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    if "sessionId" not in data or "message" not in data:
-        raise HTTPException(status_code=400, detail="Invalid request format")
+    session_id = data.get("sessionId")
+    message = data.get("message", {})
+    text = message.get("text", "")
 
-    session_id = data["sessionId"]
-    message = data["message"]
+    if not session_id or not text:
+        raise HTTPException(status_code=400, detail="Missing required fields")
 
-    sessions.setdefault(session_id, {
-        "messages": [],
-        "intelligence": {},
-        "scamDetected": False,
-        "callbackSent": False
-    })
+    # Create session if new
+    if session_id not in sessions:
+        sessions[session_id] = {
+            "messages": [],
+            "intelligence": {},
+            "scamDetected": False
+        }
 
     session = sessions[session_id]
+
     session["messages"].append(message)
 
     if not session["scamDetected"]:
-        session["scamDetected"] = detect_scam(message["text"])
+        session["scamDetected"] = detect_scam(text)
 
-    extract_intelligence(message["text"], session["intelligence"])
-
+    extract_intelligence(text, session["intelligence"])
     reply = agent_reply(session["messages"])
 
-    if session["scamDetected"] and len(session["messages"]) >= 5:
+    if len(session["messages"]) >= 15:
         send_final_callback(session_id, session)
 
     return {
         "status": "success",
         "reply": reply
     }
+
 
 
 
