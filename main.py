@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Body
 import re
 import requests
 from typing import Dict
@@ -119,4 +119,5 @@ async def honeypot(request: Request, x_api_key: str = Header(None)):
         "status": "success",
         "reply": reply
     }
+
 
