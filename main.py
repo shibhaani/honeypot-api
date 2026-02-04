@@ -5,7 +5,8 @@ from typing import Dict
 
 app = FastAPI(title="Agentic Honeypot API")
 
-API_KEY = "YOUR_SECRET_API_KEY"   # SAME key you submit to GUVI
+import os
+API_KEY = os.getenv("API_KEY") # SAME key you submit to GUVI
 GUVI_CALLBACK_URL = "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
 
 sessions: Dict[str, Dict] = {}
@@ -118,3 +119,4 @@ async def honeypot(request: Request, x_api_key: str = Header(None)):
         "status": "success",
         "reply": reply
     }
+
