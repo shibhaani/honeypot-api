@@ -2,11 +2,14 @@ from fastapi import FastAPI, Request, Header, HTTPException
 import re
 import requests
 from typing import Dict
+import os
 
 app = FastAPI(title="Agentic Honeypot API")
 
-import os
-API_KEY = os.getenv("API_KEY") # SAME key you submit to GUVI
+# ---------------------------
+# Config
+# ---------------------------
+API_KEY = os.getenv("API_KEY")  # Same key you submit on GUVI
 GUVI_CALLBACK_URL = "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
 
 sessions: Dict[str, Dict] = {}
@@ -62,7 +65,7 @@ def agent_reply(history):
 # GUVI Callback
 # ---------------------------
 def send_final_callback(session_id: str, session: Dict):
-    if session.get("callbackSent"):
+    if session["callbackSent"]:
         return
 
     payload = {
@@ -82,11 +85,6 @@ def send_final_callback(session_id: str, session: Dict):
 # ---------------------------
 # Main Endpoint
 # ---------------------------
-from fastapi import Request
-import os
-
-API_KEY = os.getenv("API_KEY")
-
 @app.post("/honeypot")
 async def honeypot(request: Request, x_api_key: str = Header(None)):
     if x_api_key != API_KEY:
@@ -104,16 +102,15 @@ async def honeypot(request: Request, x_api_key: str = Header(None)):
     if not session_id or not text:
         raise HTTPException(status_code=400, detail="Missing required fields")
 
-    # Create session if new
     if session_id not in sessions:
         sessions[session_id] = {
             "messages": [],
             "intelligence": {},
-            "scamDetected": False
+            "scamDetected": False,
+            "callbackSent": False
         }
 
     session = sessions[session_id]
-
     session["messages"].append(message)
 
     if not session["scamDetected"]:
@@ -129,7 +126,3 @@ async def honeypot(request: Request, x_api_key: str = Header(None)):
         "status": "success",
         "reply": reply
     }
-
-
-
-
