@@ -83,11 +83,11 @@ def send_final_callback(session_id: str, session: Dict):
 # Main Endpoint
 # ---------------------------
 @app.post("/honeypot")
-async def honeypot(request: Request, x_api_key: str = Header(None)):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+async def honeypot(
+    data: dict = Body(...),
+    x_api_key: str = Header(None)
+):
 
-    data = await request.json()
 
     if "sessionId" not in data or "message" not in data:
         raise HTTPException(status_code=400, detail="Invalid request format")
@@ -119,5 +119,6 @@ async def honeypot(request: Request, x_api_key: str = Header(None)):
         "status": "success",
         "reply": reply
     }
+
 
 
